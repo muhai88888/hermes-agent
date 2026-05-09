@@ -3,6 +3,8 @@ import { atom, computed } from 'nanostores'
 import type { OverlayState } from './interfaces.js'
 
 const buildOverlayState = (): OverlayState => ({
+  agents: false,
+  agentsInitialHistoryIndex: 0,
   approval: null,
   clarify: null,
   confirm: null,
@@ -21,8 +23,8 @@ export const $overlayRevision = atom(0)
 
 export const $isBlocked = computed(
   $overlayState,
-  ({ approval, clarify, confirm, modelPicker, pager, picker, secret, skillsHub, sudo }) =>
-    Boolean(approval || clarify || confirm || modelPicker || pager || picker || secret || skillsHub || sudo)
+  ({ agents, approval, clarify, confirm, modelPicker, pager, picker, secret, skillsHub, sudo }) =>
+    Boolean(agents || approval || clarify || confirm || modelPicker || pager || picker || secret || skillsHub || sudo)
 )
 
 export const getOverlayState = () => $overlayState.get()
@@ -35,7 +37,29 @@ export const patchOverlayState = (next: Partial<OverlayState> | ((state: Overlay
   $overlayRevision.set($overlayRevision.get() + 1)
 }
 
+/** Full reset — used by session/turn teardown and tests. */
 export const resetOverlayState = () => {
   $overlayState.set(buildOverlayState())
+  $overlayRevision.set($overlayRevision.get() + 1)
+}
+
+/**
+ * Soft reset: drop FLOW-scoped overlays (approval / clarify / confirm / sudo
+ * / secret / pager) but PRESERVE user-toggled ones — agents dashboard, model
+ * picker, skills hub, session picker.  Those are opened deliberately and
+ * shouldn't vanish when a turn ends.  Called from turnController.idle() on
+ * every turn completion / interrupt; the old "reset everything" behaviour
+ * silently closed /agents the moment delegation finished.
+ */
+export const resetFlowOverlays = () => {
+  const prev = $overlayState.get()
+  $overlayState.set({
+    ...buildOverlayState(),
+    agents: prev.agents,
+    agentsInitialHistoryIndex: prev.agentsInitialHistoryIndex,
+    modelPicker: prev.modelPicker,
+    picker: prev.picker,
+    skillsHub: prev.skillsHub
+  })
   $overlayRevision.set($overlayRevision.get() + 1)
 }
